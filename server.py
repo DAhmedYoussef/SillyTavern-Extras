@@ -1,6 +1,4 @@
 #!/usr/bin/python
-"""SillyTavern-extras server main program. See `README.md`."""
-
 import argparse
 import base64
 from functools import wraps
@@ -22,7 +20,10 @@ from PIL import Image
 
 import numpy as np
 import torch
+
 from transformers import pipeline
+qwen_pipeline = pipeline("text-generation", model="Qwen/Qwen2-0.5B")
+print(qwen_pipeline([{"role": "user", "content": "How are you?"}]))
 
 from flask import (Flask,
                    jsonify,
@@ -38,6 +39,7 @@ import webuiapi
 
 from constants import (DEFAULT_SUMMARIZATION_MODEL,
                        DEFAULT_CLASSIFICATION_MODEL,
+                       DEFAULT_QWEN_MODEL,
                        DEFAULT_CAPTIONING_MODEL,
                        DEFAULT_EMBEDDING_MODEL,
                        DEFAULT_SD_MODEL, DEFAULT_REMOTE_SD_HOST, DEFAULT_REMOTE_SD_PORT, PROMPT_PREFIX, NEGATIVE_PROMPT,
@@ -204,6 +206,60 @@ def api_summarize():
     print("Summary output:", summary, sep="\n")
     gc.collect()
     return jsonify({"summary": summary})
+#############################################
+
+
+""" qwen_pipeline = None  # populated when the module is loaded
+
+def _generate_text(prompt: str) -> str:
+    response = qwen_pipeline(messages=[{"role": "user", "content": prompt}])
+    return response[0]['generated_text']
+
+@app.route("/api/qwen", methods=["POST"])
+@require_module("qwen")
+def api_qwen():
+    
+    data = request.get_json()
+
+    if "text" not in data or not isinstance(data["text"], str):
+        abort(400, '"text" is required')
+
+    print("Qwen input:", data["text"], sep="\n")
+    response = _generate_text(data["text"])
+    print("Qwen output:", response, sep="\n")
+    gc.collect()
+    return jsonify({"response": response})
+
+ """
+
+qwen_pipeline = None  # يتم تعريفه عند تحميل الموديل
+
+def _generate_response(text: str) -> str:
+    response = qwen_pipeline([{"role": "user", "content": text}])
+    return response[0]["generated_text"]
+
+@app.route("/api/qwen", methods=["POST"])
+@require_module("qwen")
+def api_qwen():
+    """Generate response using Qwen model."""
+    data = request.get_json()
+
+    if "text" not in data or not isinstance(data["text"], str):
+        abort(400, '"text" is required')
+
+    print("Qwen input:", data["text"], sep="\n")
+    response = _generate_response(data["text"])
+    print("Qwen output:", response, sep="\n")
+    gc.collect()
+    return jsonify({"response": response})
+
+
+
+
+
+
+
+
 
 # ----------------------------------------
 # classify
@@ -903,6 +959,8 @@ parser.add_argument("--cuda", action="store_false", dest="cpu", help="Run the mo
 parser.add_argument("--cuda-device", help="Specify the CUDA device to use")
 parser.add_argument("--mps", "--apple", "--m1", "--m2", action="store_false", dest="cpu", help="Run the models on Apple Silicon")
 parser.set_defaults(cpu=True)
+
+parser.add_argument("--qwen-model", help="Load a custom Qwen model")
 parser.add_argument("--summarization-model", help="Load a custom summarization model")
 parser.add_argument(
     "--classification-model", help="Load a custom text classification model"
@@ -973,9 +1031,13 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
-
+########################
 port = args.port if args.port else 5100
 host = "0.0.0.0" if args.listen else "localhost"
+
+
+qwen_model = args.qwen_model if args.qwen_model else DEFAULT_QWEN_MODEL
+#####################################
 summarization_model = args.summarization_model if args.summarization_model else DEFAULT_SUMMARIZATION_MODEL
 classification_model = args.classification_model if args.classification_model else DEFAULT_CLASSIFICATION_MODEL
 captioning_model = args.captioning_model if args.captioning_model else DEFAULT_CAPTIONING_MODEL
@@ -1048,6 +1110,11 @@ if "talkinghead" in modules:
 if "caption" in modules:
     print("Initializing an image captioning model...")
     captioning_pipeline = pipeline('image-to-text', model=captioning_model, device=device_string, torch_dtype=torch_dtype)
+
+if "qwen" in modules:
+    print("Initializing Qwen text-generation model...")
+    qwen_pipeline = pipeline("text-generation", model=qwen_model, device=device_string, torch_dtype=torch_dtype)
+
 
 if "summarize" in modules:
     print("Initializing a text summarization model...")
