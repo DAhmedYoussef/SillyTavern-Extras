@@ -8,7 +8,7 @@ DEFAULT_CLASSIFICATION_MODEL = "nateraw/bert-base-uncased-emotion"
 DEFAULT_CAPTIONING_MODEL = "Salesforce/blip-image-captioning-large"
 DEFAULT_SD_MODEL = "ckpt/anything-v4.5-vae-swapped"
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
-DEFAULT_QWEN_MODEL = "Qwen/Qwen2-0.5B"
+DEFAULT_QWEN_MODEL = "Qwen/Qwen-7B-Chat"
 
 DEFAULT_REMOTE_SD_HOST = "127.0.0.1"
 DEFAULT_REMOTE_SD_PORT = 7860
