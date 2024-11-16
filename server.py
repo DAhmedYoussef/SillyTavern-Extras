@@ -1,4 +1,6 @@
 #!/usr/bin/python
+"""SillyTavern-extras server main program. See `README.md`."""
+
 import argparse
 import base64
 from functools import wraps
@@ -20,10 +22,39 @@ from PIL import Image
 
 import numpy as np
 import torch
-
 from transformers import pipeline
-qwen_pipeline = pipeline("text-generation", model="Qwen/Qwen2-0.5B")
-print(qwen_pipeline([{"role": "user", "content": "How are you?"}]))
+
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+
+qwen_model = "Qwen/Qwen-7B-Chat"  
+tokenizer = AutoTokenizer.from_pretrained(qwen_model)
+qwen_model_instance = AutoModelForCausalLM.from_pretrained(qwen_model)
+
+qwen_pipeline = pipeline("text-generation", model=qwen_model_instance, tokenizer=tokenizer)
+
+# زيادة max_new_tokens عشان ما يحصلش التداخل مع max_length
+print(f"{qwen_model} loaded successfully.")
+
+def _generate_response(text: str) -> str:
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError('The input text must be a non-empty string.')
+    if qwen_pipeline is None:
+        raise ValueError("Qwen pipeline is not initialized.")
+    
+    # إرسال النص للنموذج مع تحديد max_new_tokens
+    print(f"Sending to Qwen model: {text}")  # For debugging
+    response = qwen_pipeline(text, max_new_tokens=50)  # تحديد عدد التوكنات الجديدة
+    print(f"Qwen model response: {response}")  # For debugging
+    return response[0]["generated_text"]
+
+# اختبار الـ pipeline بشكل منفصل
+test_input = "Hello, how are you?"
+response = qwen_pipeline(test_input, max_new_tokens=50)  # تحديد max_new_tokens هنا
+print(f"Test response from Qwen: {response[0]['generated_text']}")
+
+
+
+
 
 from flask import (Flask,
                    jsonify,
@@ -209,53 +240,46 @@ def api_summarize():
 #############################################
 
 
-""" qwen_pipeline = None  # populated when the module is loaded
 
-def _generate_text(prompt: str) -> str:
-    response = qwen_pipeline(messages=[{"role": "user", "content": prompt}])
-    return response[0]['generated_text']
 
-@app.route("/api/qwen", methods=["POST"])
-@require_module("qwen")
-def api_qwen():
+
     
-    data = request.get_json()
 
-    if "text" not in data or not isinstance(data["text"], str):
-        abort(400, '"text" is required')
 
-    print("Qwen input:", data["text"], sep="\n")
-    response = _generate_text(data["text"])
-    print("Qwen output:", response, sep="\n")
-    gc.collect()
-    return jsonify({"response": response})
 
- """
+
+
 
 qwen_pipeline = None  # يتم تعريفه عند تحميل الموديل
 
 def _generate_response(text: str) -> str:
-    response = qwen_pipeline([{"role": "user", "content": text}])
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError('The input text must be a non-empty string.')
+    if qwen_pipeline is None:
+        raise ValueError("Qwen pipeline is not initialized.")
+    
+    print(f"Sending to Qwen model: {text}")  # For debugging
+    response = qwen_pipeline(text, max_new_tokens=50)  # تحديد max_new_tokens
+    print(f"Qwen model response: {response}")  # For debugging
     return response[0]["generated_text"]
 
 @app.route("/api/qwen", methods=["POST"])
 @require_module("qwen")
 def api_qwen():
-    """Generate response using Qwen model."""
     data = request.get_json()
-
     if "text" not in data or not isinstance(data["text"], str):
-        abort(400, '"text" is required')
-
-    print("Qwen input:", data["text"], sep="\n")
+        abort(400, '"text" is required and must be a valid string')
+    
     response = _generate_response(data["text"])
-    print("Qwen output:", response, sep="\n")
-    gc.collect()
-    return jsonify({"response": response})
+    return {"response": response}
 
-
-
-
+# اختبار الـ pipeline بشكل منفصل
+if qwen_pipeline is not None:
+    test_input = "Hello, how are you?"
+    response = qwen_pipeline(test_input, max_new_tokens=50)  # تحديد max_new_tokens
+    print(f"Test response from Qwen: {response[0]['generated_text']}")
+else:
+    print("Qwen pipeline is not initialized.")
 
 
 
@@ -1037,6 +1061,11 @@ host = "0.0.0.0" if args.listen else "localhost"
 
 
 qwen_model = args.qwen_model if args.qwen_model else DEFAULT_QWEN_MODEL
+
+
+# التأكد من أن النموذج متاح قبل المتابعة
+if qwen_model is None:
+    raise ValueError("Qwen model is not defined properly.")
 #####################################
 summarization_model = args.summarization_model if args.summarization_model else DEFAULT_SUMMARIZATION_MODEL
 classification_model = args.classification_model if args.classification_model else DEFAULT_CLASSIFICATION_MODEL
@@ -1114,7 +1143,6 @@ if "caption" in modules:
 if "qwen" in modules:
     print("Initializing Qwen text-generation model...")
     qwen_pipeline = pipeline("text-generation", model=qwen_model, device=device_string, torch_dtype=torch_dtype)
-
 
 if "summarize" in modules:
     print("Initializing a text summarization model...")
